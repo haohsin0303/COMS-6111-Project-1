@@ -1,3 +1,4 @@
+import json
 import sys
 import pprint
 from googleapiclient.discovery import build
@@ -19,20 +20,38 @@ def get_google_search_results(user_query):
         )
         .execute()
     )
-    pprint.pprint(res)
+    parse_search_results(res)
     return res
+# 
+def parse_search_results(res):
+    for cnt, i in enumerate(res['items']):
+        result_title = i['title']
+        result_url = i['link']
+        result_summary = i['snippet']
+        print("\
+Result {iteration_count}\n\
+[\n\
+    URL: {result_url} \n\
+    Title: {result_title} \n\
+    Summary: {result_summary} \n\
+]".format(iteration_count=cnt+1, result_url=result_url, result_title=result_title, result_summary=result_summary)
+        )
 
-    # 'snippet', 'formattedUrl', 'title', 'htmlTitl'
+        relevancy = input("Relevant (Y/N)? ")
+
+
+
 
 
 def write_parameters(precision, user_query):
     print("\
-    Parameters: \n\
-    Client key  = AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY \n\
-    Engine key  = 089e480ae5f6ce283 \n\
-    Query       = {user_query} \n\
-    Precision   = {precision} \n\
-    Google Search Results:".format(user_query=user_query, precision=precision)
+Parameters: \n\
+Client key  = AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY \n\
+Engine key  = 089e480ae5f6ce283 \n\
+Query       = {user_query} \n\
+Precision   = {precision} \n\
+Google Search Results:\n\
+======================".format(user_query=user_query, precision=precision)
     )
 
 def main():
@@ -50,20 +69,6 @@ def main():
     user_query = terminal_arguments[1]
     write_parameters(precision, user_query)
     results = get_google_search_results(user_query)
-
-    
-
-
-
-    """
-    Parameters:
-    Client key  = AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY
-    Engine key  = 089e480ae5f6ce283
-    Query       = Hello
-    Precision   = 100.0
-    Google Search Results:
-    
-    """    
 
 
 
