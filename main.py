@@ -4,20 +4,21 @@ import re
 import pprint
 from googleapiclient.discovery import build
 from collections import Counter, defaultdict
-import rocchio
+import AugmentQueryUtil
+import FormatSearchResultUtil
 
 search_engine_id = "089e480ae5f6ce283"
 json_api_key = "AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY"
 
-precision = 0
-calculated_precision = -1
-user_query = ""
+PRECISION = 0
+CALCULATED_PRECISION = -1
+USER_QUERY = ""
 stop_words = []
 termFrequency = {}
 relevant_documents = defaultdict(int)
 irrelevant_documents = defaultdict(int)
 augmented_query_terms = []
-new_query_terms = []
+NEW_QUERY_TERMS = []
 
 
 # removing the new line characters
@@ -26,19 +27,19 @@ with open('stopwords.txt') as f:
 
 
 def get_google_search_results():
-    global augmented_query_terms, termFrequency, relevant_documents, irrelevant_documents
-    global precision, user_query
+    global USER_QUERY, NEW_QUERY_TERMS
 
     service = build("customsearch", "v1", developerKey=json_api_key)
     querying = True
     while querying:
         termFrequency, relevant_documents, irrelevant_documents = {}, defaultdict(int), defaultdict(int)
-        user_query = user_query + " " + " ".join(new_query_terms)
-        write_parameters(precision, user_query)
+        print(USER_QUERY)
+        USER_QUERY = USER_QUERY + " " + " ".join(NEW_QUERY_TERMS)
+        write_parameters(PRECISION, USER_QUERY)
         res = (
             service.cse()
             .list(
-                q=user_query,
+                q=USER_QUERY,
                 cx=search_engine_id,
             )
             .execute()
@@ -47,42 +48,39 @@ def get_google_search_results():
     return res
 
 
-def write_feedback_summary(total_search_results):
+def write_feedback_summary():
     # ======================
     # FEEDBACK SUMMARY
     # Query milk
     # Precision 1.0
     # Desired precision reached, done
     # global calculated_precision
-    final_precision = calculated_precision / total_search_results
 
     print("\
 ====================== \n\
 FEEDBACK SUMMARY \n\
 Query {user_query} \n\
-Precision {final_precision} \n\
-Desired precision reached, done".format(user_query=user_query, final_precision=final_precision)
+Precision {calculated_precision} \n\
+Desired precision reached, done".format(user_query=USER_QUERY, calculated_precision=CALCULATED_PRECISION)
     )
 
-def write_augment_query_summary(total_search_results):
-    global user_query
-    global new_query_terms
-
-    final_precision = calculated_precision / total_search_results
+def write_augment_query_summary():
+    global USER_QUERY
+    global NEW_QUERY_TERMS
     
     print("\
 ====================== \n\
 FEEDBACK SUMMARY \n\
 Query {user_query} \n\
-Precision {final_precision} \n\
-Still below the desired precision of {precision} \n\
+Precision {calculated_precision} \n\
+Still below the desired precision of {desired_precision} \n\
 Indexing results .... \n\
 Indexing results .... \n\
-Augmententing by  {new_query_terms}".format(user_query=user_query, calculated_precision=calculated_precision, precision=precision, final_precision=final_precision, new_query_terms=" ".join(new_query_terms))
+Augmententing by  {new_query_terms}".format(user_query=USER_QUERY, calculated_precision=CALCULATED_PRECISION, desired_precision=PRECISION, new_query_terms=" ".join(NEW_QUERY_TERMS))
     )
 
 
-def write_unable_to_augment_query_summary(total_search_results):
+def write_unable_to_augment_query_summary():
     """
     ======================
     FEEDBACK SUMMARY
@@ -94,35 +92,42 @@ def write_unable_to_augment_query_summary(total_search_results):
     Augmenting by
     Below desired precision, but can no longer augment the query
     """
-
-    final_precision = calculated_precision / total_search_results
-
     print("\
 ====================== \n\
 FEEDBACK SUMMARY \n\
 Query {user_query} \n\
-Precision {final_precision} \n\
-Still below the desired precision of {precision} \n\
-Below desired precision, but can no longer augment the query".format(user_query=user_query, calculated_precision=calculated_precision, precision=precision, final_precision=final_precision)
-    )
+Precision {calculated_precision} \n\
+Still below the desired precision of {desired_precision} \n\
+Below desired precision, but can no longer augment the query".format(user_query=USER_QUERY, desired_precision=PRECISION, calculated_precision=CALCULATED_PRECISION)
+)
     
-def augment_query():
-    global calculated_precision, termFrequency, relevant_documents, irrelevant_documents, termWeights, user_query
-    termWeights = rocchio.tf_idf_weighting(termFrequency, relevant_documents, irrelevant_documents)
+def augment_query(google_search_results, relevant, not_relevant):
+    tf_idf = AugmentQueryUtil.createTfIdf()
 
-    q_vector = {}
-    for word in termFrequency:
-        splitted_user_query = user_query.split()
-        if (word in splitted_user_query):
-            q_vector[word] = 1
-        else:
-            q_vector[word] = 0
+    AugmentQueryUtil.transformUserQueryToVector(tf_idf, google_search_results, [USER_QUERY])
+    red = AugmentQueryUtil.transformDocumentToVector(tf_idf, google_search_results, relevant)
+    nred = AugmentQueryUtil.transformDocumentToVector(tf_idf, google_search_results, not_relevant)
+
+    AugmentQueryUtil.setRocchioParams(red, nred)
+
+    q_vector = AugmentQueryUtil.runRocchio()
+
+    # for word in termFrequency:
+    #     splitted_user_query = user_query.split()
+    #     if (word in splitted_user_query):
+    #         q_vector[word] = 1
+    #     else:
+    #         q_vector[word] = 0
     
-    R = calculated_precision
-    NR = 10-calculated_precision
-    new_q = rocchio.run_rocchio(q_vector, relevant_documents, irrelevant_documents, termWeights, R, NR)
-    new_words = rocchio.select_highest_valued_words(new_q, user_query)
+    # R = calculated_precision
+    # NR = 10-calculated_precision
+    # new_q = AugmentQueryUtil.run_rocchio(q_vector, relevant_documents, irrelevant_documents, termWeights, R, NR)
+
+    new_words = AugmentQueryUtil.selectHighestValuedWords(tf_idf, q_vector, USER_QUERY)
+
     return new_words
+
+
 
 
 
@@ -133,7 +138,7 @@ def final_precision_zero_or_reached(total_search_results):
 
     print("Calculated Precision: ", calculated_precision)
     print("Total Search Results", total_search_results)
-    if ((calculated_precision / total_search_results) >= precision):
+    if ((calculated_precision / total_search_results) >= PRECISION):
         write_feedback_summary(total_search_results)
         return True
     elif (calculated_precision == 0):
@@ -148,17 +153,20 @@ def final_precision_zero_or_reached(total_search_results):
     
 
 def parse_search_results(res):
-    global calculated_precision, augmented_query_terms
-    total_search_results = len(res['items'])
-    old_query_length = len(augmented_query_terms)
+    global CALCULATED_PRECISION, NEW_QUERY_TERMS
+    
+    # total_search_results = len(res['items'])
+    # old_query_length = len(augmented_query_terms)
 
-    # querying = not final_precision_zero_or_reached(total_search_results)
-    calculated_precision = 0
+    # calculated_precision = 0
 
-    for cnt, i in enumerate(res['items']):
-        result_title = i['title']
-        result_url = i['link']
-        result_summary = i['snippet']
+    refined_search_results = []
+    relevant, not_relevant = [], []
+
+    for count, item in enumerate(res['items']):
+        result_title = item['title']
+        result_url = item['link']
+        result_summary = item['snippet']
 
         # skip pdf files
         if len(result_url) >= 3 and result_url[-4:] == ".pdf":
@@ -170,28 +178,63 @@ Result {iteration_count}\n\
 URL: {result_url} \n\
 Title: {result_title} \n\
 Summary: {result_summary} \n\
-]".format(iteration_count=cnt+1, result_url=result_url, result_title=result_title, result_summary=result_summary)
+]".format(iteration_count=count+1, result_url=result_url, result_title=result_title, result_summary=result_summary)
         )
 
-        parsed_words = calculate_term_frequency_for_document(result_summary)
+        # parsed_words = calculate_term_frequency_for_document(result_summary)
+
+
+        # result_body = FormatSearchResultUtil.getSearchResultBody(result_url)
+        result_body = ''
+        # print("RESULT BODY: ", result_body)
+        combined_search_result_string = result_title + " " + result_summary + " " + result_body
+        # print("COMBINED: " , combined_search_result_string)
+
+        
+        formatted_search_result = FormatSearchResultUtil.removeUnwantedChars(combined_search_result_string)
+        refined_search_results.append(formatted_search_result)
+        # print(formatted_search_result)
+
         relevancy = input("Relevant (Y/N)? ")
         if (relevancy.upper() == "Y"):
+            print("YES")
+            relevant.append(formatted_search_result)
 
-            store_relevant_document(set(parsed_words))
 
-            if (calculated_precision == -1):
-                calculated_precision = 0
-            calculated_precision += 1
+
+            # store_relevant_document(set(parsed_words))
         
         else:
-            store_irrelevant_document(set(parsed_words))
+            print("NO")
+            not_relevant.append(formatted_search_result)
+            # store_irrelevant_document(set(parsed_words))
+    
+    numOfRelevantResults = len(relevant)
+    print(numOfRelevantResults)
+    numOfNonRelevantResults = len(not_relevant)
+    print(numOfNonRelevantResults)
 
-    result = final_precision_zero_or_reached(total_search_results)
-    if (len(augmented_query_terms) != old_query_length):
-        write_augment_query_summary(total_search_results)
-        return True
+    CALCULATED_PRECISION = numOfRelevantResults / (numOfRelevantResults + numOfNonRelevantResults)
+    print(CALCULATED_PRECISION)
+    if (CALCULATED_PRECISION == 0.0):
+        write_unable_to_augment_query_summary()
+        return False
+    elif (CALCULATED_PRECISION >= PRECISION):
+        write_feedback_summary()
+        return False
     else:
-        return not(result)
+        NEW_QUERY_TERMS = augment_query(refined_search_results, relevant, not_relevant)
+        write_augment_query_summary()
+        return True
+
+
+
+    # result = final_precision_zero_or_reached(total_search_results)
+    # if (len(augmented_query_terms) != old_query_length):
+    #     write_augment_query_summary(total_search_results)
+    #     return True
+    # else:
+    #     return not(result)
 
 
 def store_irrelevant_document(words):
@@ -230,7 +273,6 @@ def store_relevant_document(words):
 
 
 
-
 def calculate_term_frequency_for_document(result_description):
     global termFrequency
     words = []
@@ -257,26 +299,38 @@ Client key  = AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY \n\
 Engine key  = 089e480ae5f6ce283 \n\
 Query       = {user_query} \n\
 Precision   = {precision} \n\
-Google Search Results:".format(user_query=user_query, precision=precision)
+Google Search Results:".format(user_query=USER_QUERY, precision=PRECISION)
     )
 
 def main():
     # <google api key> <google engine id> <precision> <query>
-    global precision, user_query
+    global USER_QUERY, PRECISION
 
-    terminal_arguments = sys.argv[3:]
+    terminal_arguments = sys.argv[1:]
+    print(terminal_arguments)
+    if (len(terminal_arguments) < 4):
+        print("Format must be <google api key> <google engine id> <precision> <query>")
+        return
 
-    precision = float(terminal_arguments[0])
-    print("precision2", precision)
-    if (precision < 0.0 or precision > 1.0):
+    precisionString = terminal_arguments[2]
+    isPrecisionNumber = precisionString.replace('.','',1).isdigit()
+
+    if (not(isPrecisionNumber)):
+        print("Format must be <google api key> <google engine id> <precision> <query>")
+        return
+
+    PRECISION = float(precisionString)
+    print("precision2", PRECISION)
+    if (PRECISION < 0.0 or PRECISION > 1.0):
         print("Precision should be a real number between 0 and 1")
         return
-    elif (precision == 0.0):
+    elif (PRECISION == 0.0):
         print("Desired precision reached, done")
         return
-    user_query = terminal_arguments[1]
-    # write_parameters(precision, user_query)
-    results = get_google_search_results()
+    else:
+        USER_QUERY = " ".join(terminal_arguments[3:])
+        print(USER_QUERY)
+        results = get_google_search_results()
 
 
 
