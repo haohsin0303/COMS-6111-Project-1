@@ -1,13 +1,17 @@
 import math
 from collections import defaultdict
 from sklearn.feature_extraction.text import TfidfVectorizer
+import re
 
 ALPHA = 1
 BETA = 0.75
 GAMMA = 0.15
 
+COUNT = 1
 Q0 = 0
 R, NR, SUM_R, SUM_NR = 0, 0, 0, 0
+
+orderingOfWords = []
 
 def createTfIdf():
     return TfidfVectorizer(analyzer="word", stop_words='english')
@@ -18,10 +22,23 @@ def transformUserQueryToVector(tf_idf, search_results, user_query):
     Q0 = tf_idf.transform(user_query)
 
 def transformDocumentToVector(tf_idf, search_results, relevancy_doc ):
+    global COUNT, orderingOfWords
     tf_idf.fit_transform([result for result in search_results ])
     result = []
+    ## {word: [(id of Document, index position)], word2: ...}
+    ## 
+    ##
+
+
     for d in relevancy_doc:
         result.append(tf_idf.transform([d]))
+        # for index, word in enumerate(splitted_words):
+        #     if (word in orderingOfWords.keys()):
+        #         orderingOfWords[word].append((COUNT, index))
+        #     else:
+        #         orderingOfWords[word] = [(COUNT, index)]
+        orderingOfWords.append(d)
+        COUNT += 1
     return result
     
 def setRocchioParams(relevant_documents, irrelevant_documents):
@@ -32,9 +49,6 @@ def setRocchioParams(relevant_documents, irrelevant_documents):
 
 def runRocchio():
     global ALPHA, BETA, GAMMA, R, NR, SUM_R, SUM_NR
-    print("Alpha:", ALPHA)
-    print("Beta: ", BETA)
-    print("GAMMA: ", GAMMA)
     firstTerm = ALPHA * Q0
     secondTerm = BETA * (SUM_R / R)
     thirdTerm = GAMMA * (SUM_NR/ NR)
@@ -67,6 +81,19 @@ def selectHighestValuedWords(tf_idf, q_vector, user_query):
     highest_words = list(filtered)
     if (len(highest_words) < 2):
         return highest_words
+
+    if (abs(word_scores[highest_words[0]] - word_scores[highest_words[1]]) > .1):
+        return highest_words[:1]
+
+    for sentenceFragment in orderingOfWords:
+        if (" ".join(highest_words[:2]) in sentenceFragment):
+            return highest_words[:2]
+        else:
+            swapped_highest_words_ordering = highest_words[:2][::-1] 
+            print(swapped_highest_words_ordering)
+            if (" ".join(swapped_highest_words_ordering) in sentenceFragment):
+                return swapped_highest_words_ordering     
+
     return highest_words[:2]
 
 
@@ -107,15 +134,12 @@ def run_rocchio(q0, relevant_docs, irrelavant_docs, term_weights, R, NR):
     return new_q
 
 
-def select_highest_valued_words(q, old_query):
-    duplicate = set(old_query.split()).intersection(q)
-    print("duplicate", duplicate)
-    print("q", q)
-    print("old_query", old_query)
-    for duplicate_key in duplicate: del q[duplicate_key]
+# def select_highest_valued_words(q, old_query):
+#     duplicate = set(old_query.split()).intersection(q)
+#     for duplicate_key in duplicate: del q[duplicate_key]
 
-    sorted_term_weights = sorted(q.items(), key=lambda x: x[1])
-    selected_terms = map(lambda x: x[0], sorted_term_weights[-2:])
+#     sorted_term_weights = sorted(q.items(), key=lambda x: x[1])
+#     selected_terms = map(lambda x: x[0], sorted_term_weights[-2:])
   
-    return [word for word in selected_terms]
+#     return [word for word in selected_terms]
 

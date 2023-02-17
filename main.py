@@ -6,14 +6,18 @@ from googleapiclient.discovery import build
 from collections import Counter, defaultdict
 import AugmentQueryUtil
 import FormatSearchResultUtil
+from googleapiclient.errors import HttpError
 
-search_engine_id = "089e480ae5f6ce283"
-json_api_key = "AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY"
+# search_engine_id = "089e480ae5f6ce283"
+# json_api_key = "AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY"
 
+
+API_KEY = None
+ENGINE_KEY = None
 PRECISION = 0
 CALCULATED_PRECISION = -1
 USER_QUERY = ""
-stop_words = []
+stop_words = set()
 termFrequency = {}
 relevant_documents = defaultdict(int)
 irrelevant_documents = defaultdict(int)
@@ -23,30 +27,32 @@ NEW_QUERY_TERMS = []
 
 # removing the new line characters
 with open('stopwords.txt') as f:
-    stop_words = [line.rstrip() for line in f]
+    stop_words = {line.rstrip() for line in f}
 
 
 def get_google_search_results():
     global USER_QUERY, NEW_QUERY_TERMS
 
-    service = build("customsearch", "v1", developerKey=json_api_key)
+    service = build("customsearch", "v1", developerKey=API_KEY)
     querying = True
     while querying:
         termFrequency, relevant_documents, irrelevant_documents = {}, defaultdict(int), defaultdict(int)
-        print(USER_QUERY)
-        USER_QUERY = USER_QUERY + " " + " ".join(NEW_QUERY_TERMS)
+        if (len(NEW_QUERY_TERMS) > 0):
+            USER_QUERY = USER_QUERY + " " + " ".join(NEW_QUERY_TERMS)
         write_parameters(PRECISION, USER_QUERY)
-        res = (
+        try:
+            res = (
             service.cse()
             .list(
                 q=USER_QUERY,
-                cx=search_engine_id,
+                cx=ENGINE_KEY,
             )
             .execute()
-        )
-        querying = parse_search_results(res)
-    return res
-
+            )
+            querying = parse_search_results(res)
+        except HttpError:
+            print("API key or Engine key not valid. Please pass a valid API and Engine key.")
+            querying = False
 
 def write_feedback_summary():
     # ======================
@@ -76,7 +82,7 @@ Precision {calculated_precision} \n\
 Still below the desired precision of {desired_precision} \n\
 Indexing results .... \n\
 Indexing results .... \n\
-Augmententing by  {new_query_terms}".format(user_query=USER_QUERY, calculated_precision=CALCULATED_PRECISION, desired_precision=PRECISION, new_query_terms=" ".join(NEW_QUERY_TERMS))
+Augmenting by {new_query_terms}".format(user_query=USER_QUERY, calculated_precision=CALCULATED_PRECISION, desired_precision=PRECISION, new_query_terms=" ".join(NEW_QUERY_TERMS))
     )
 
 
@@ -175,10 +181,10 @@ def parse_search_results(res):
         print("\
 Result {iteration_count}\n\
 [\n\
-URL: {result_url} \n\
-Title: {result_title} \n\
-Summary: {result_summary} \n\
-]".format(iteration_count=count+1, result_url=result_url, result_title=result_title, result_summary=result_summary)
+ URL: {result_url} \n\
+ Title: {result_title} \n\
+ Summary: {result_summary} \n\
+] \n".format(iteration_count=count+1, result_url=result_url, result_title=result_title, result_summary=result_summary)
         )
 
         # parsed_words = calculate_term_frequency_for_document(result_summary)
@@ -197,7 +203,6 @@ Summary: {result_summary} \n\
 
         relevancy = input("Relevant (Y/N)? ")
         if (relevancy.upper() == "Y"):
-            print("YES")
             relevant.append(formatted_search_result)
 
 
@@ -205,17 +210,13 @@ Summary: {result_summary} \n\
             # store_relevant_document(set(parsed_words))
         
         else:
-            print("NO")
             not_relevant.append(formatted_search_result)
             # store_irrelevant_document(set(parsed_words))
     
     numOfRelevantResults = len(relevant)
-    print(numOfRelevantResults)
     numOfNonRelevantResults = len(not_relevant)
-    print(numOfNonRelevantResults)
 
     CALCULATED_PRECISION = numOfRelevantResults / (numOfRelevantResults + numOfNonRelevantResults)
-    print(CALCULATED_PRECISION)
     if (CALCULATED_PRECISION == 0.0):
         write_unable_to_augment_query_summary()
         return False
@@ -299,39 +300,53 @@ Client key  = AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY \n\
 Engine key  = 089e480ae5f6ce283 \n\
 Query       = {user_query} \n\
 Precision   = {precision} \n\
-Google Search Results:".format(user_query=USER_QUERY, precision=PRECISION)
+Google Search Results: \n\
+======================".format(user_query=USER_QUERY, precision=PRECISION)
+
     )
 
 def main():
-    # <google api key> <google engine id> <precision> <query>
-    global USER_QUERY, PRECISION
+    """
+    
+    
+    """
+
+
+    # Format Required: <google api key> <google engine id> <precision> <query>
+    global USER_QUERY, PRECISION, API_KEY, ENGINE_KEY
 
     terminal_arguments = sys.argv[1:]
-    print(terminal_arguments)
-    if (len(terminal_arguments) < 4):
-        print("Format must be <google api key> <google engine id> <precision> <query>")
+    # Return if the number of arguments provided is incorrect
+    if (len(terminal_arguments) != 4):
+        # Usage: /home/gkaraman/run <API Key> <Engine Key> <Precision> <Query>
+        print("Format must be <API Key> <Engine Key> <Precision> <Query>")
         return
+
+    
+    API_KEY = terminal_arguments[0]
+    ENGINE_KEY = terminal_arguments[1]
 
     precisionString = terminal_arguments[2]
     isPrecisionNumber = precisionString.replace('.','',1).isdigit()
 
+    # Return if precision number not a valid number
     if (not(isPrecisionNumber)):
-        print("Format must be <google api key> <google engine id> <precision> <query>")
+        print("Precision must be a valid number")
         return
 
     PRECISION = float(precisionString)
-    print("precision2", PRECISION)
-    if (PRECISION < 0.0 or PRECISION > 1.0):
-        print("Precision should be a real number between 0 and 1")
-        return
-    elif (PRECISION == 0.0):
+
+    # Return if precision number is too small or big
+    if (PRECISION <= 0.0):
         print("Desired precision reached, done")
         return
+    elif (PRECISION > 1.0):
+        print("Precision should be a real number between 0 and 1")
+        return
+    # Start querying search results
     else:
         USER_QUERY = " ".join(terminal_arguments[3:])
-        print(USER_QUERY)
-        results = get_google_search_results()
-
+        get_google_search_results()
 
 
 if __name__ == "__main__":
