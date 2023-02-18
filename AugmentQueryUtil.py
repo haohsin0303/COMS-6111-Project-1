@@ -2,6 +2,8 @@ import math
 from collections import defaultdict
 from sklearn.feature_extraction.text import TfidfVectorizer
 import re
+import itertools
+import inflect
 
 ALPHA = 1
 BETA = 0.75
@@ -12,6 +14,9 @@ Q0 = 0
 R, NR, SUM_R, SUM_NR = 0, 0, 0, 0
 
 orderingOfWords = []
+
+inflect = inflect.engine()
+
 
 def createTfIdf():
     return TfidfVectorizer(analyzer="word", stop_words='english')
@@ -82,6 +87,10 @@ def selectHighestValuedWords(tf_idf, q_vector, user_query):
     if (len(highest_words) < 2):
         return highest_words
 
+    print("DIFFERENCE: ", abs(word_scores[highest_words[0]] - word_scores[highest_words[1]]))
+
+    highest_words = remove_plural_and_singular(highest_words, user_query)
+    
     if (abs(word_scores[highest_words[0]] - word_scores[highest_words[1]]) > .1):
         return highest_words[:1]
 
@@ -92,54 +101,120 @@ def selectHighestValuedWords(tf_idf, q_vector, user_query):
             swapped_highest_words_ordering = highest_words[:2][::-1] 
             print(swapped_highest_words_ordering)
             if (" ".join(swapped_highest_words_ordering) in sentenceFragment):
-                return swapped_highest_words_ordering     
+                return swapped_highest_words_ordering 
+
+    
+
 
     return highest_words[:2]
 
 
+def maybeReorderWords(user_query, new_words):
+    
+    # User Query: brin
+    # New Word: sergey microsoft
 
+    combined_input = [user_query] + new_words
 
+    possibleOrderings = list(itertools.permutations(combined_input))
 
+    permutationScore = {}
 
+    ## In each n-gram tuple, does the tuple follow the ordering defined? 
+    ## After the iteration is done, store final count and we do the next possible ordering of words and restart
 
+    ## After all permutations are complete: check which ordering has the highest score and let that be the final augmented query
+ 
 
-def tf_idf_weighting(term_freq, relevant_doc_freq, irrelevant_doc_freq):
-    N = 10
-    term_weights = defaultdict(int)
-    for word in relevant_doc_freq:
-        tf = term_freq[word]
-        df = relevant_doc_freq[word] + irrelevant_doc_freq[word]
+    for ordering in possibleOrderings:
+        score = 0
+        for sentenceFragment in orderingOfWords:
+            score += calculateScore(ordering, sentenceFragment) 
+        permutationScore[ordering] = score   
 
-        term_weights[word] = tf * math.log(N / df)
+    bestPossibleOrdering = max(permutationScore, key=permutationScore.get)
+    print("HELLO: ", bestPossibleOrdering)
 
-    return term_weights
+    return bestPossibleOrdering
 
+    # [(sergey, brin), (brin, was), (was, born), (born, in)]
 
-def run_rocchio(q0, relevant_docs, irrelavant_docs, term_weights, R, NR):
-    new_q = {}
-    for word in q0:
-        term1 = (ALPHA * q0[word])
-        if (word in relevant_docs.keys() and relevant_docs[word] >= 1):
-            term2 = BETA * (term_weights[word] / R)
-        else:
-            term2 = 0
+    # [("sergey", "was", "born", "in", "1950", "Mr.", "Brin", "was" "studying"..)] 
+
+    # sizeOfNewQuery = len(user_query) + len(new_words)
+    # for sentenceFragment in orderingOfWords:
+    #     splittedSentence = sentenceFragment.split()
+    #     possibleWordPairs = find_ngrams(splittedSentence, sizeOfNewQuery)
+    #     for pair in possibleWordPairs:
+    #         if ()
+
+    # #     if (" ".join([user_query] + new_words) in sentenceFragment):
+            
+
+def calculateScore(ordering, sentenceFragment):
+    words = sentenceFragment.split()
+    score = 0
+    last_index = -1
+
+    for word in ordering:
+        index = -1
+        for i, w in enumerate(words):
+            if (word.lower() == w.lower()):
+                index = i
+                break
+        if index == -1:
+            return score
+        if index <= last_index:
+            return score
         
-        if (word in irrelavant_docs.keys() and irrelavant_docs[word] >= 1):
-            term3 = GAMMA * (term_weights[word] / NR)
-        else:
-            term3 = 0
+        last_index = index
+    
+    score += 1
+    return score
+    
+            
 
-        new_q[word] = term1 + term2 - term3
+def find_ngrams(input_list, n):
+  return zip(*[input_list[i:] for i in range(n)])
 
-    return new_q
 
+def remove_plural_and_singular(words, target_word):
+    """
+    Removes the plural and singular versions of a target word from a list of words.
 
-# def select_highest_valued_words(q, old_query):
-#     duplicate = set(old_query.split()).intersection(q)
-#     for duplicate_key in duplicate: del q[duplicate_key]
+    Args:
+    - words: a list of words
+    - target_word: the target word to check against
 
-#     sorted_term_weights = sorted(q.items(), key=lambda x: x[1])
-#     selected_terms = map(lambda x: x[0], sorted_term_weights[-2:])
-  
-#     return [word for word in selected_terms]
+    Returns:
+    - A modified list of words with plural and singular versions of the target word removed
+    """
+    # Create a copy of the input list to avoid modifying it directly
+    new_words = words.copy()
 
+    # Iterate over each word in the list
+    for word in words:
+        # Check if the word is a plural or singular version of the target word
+        if word == make_plural(target_word) or word == target_word:
+            # If it is, remove it from the new list
+            new_words.remove(word)
+
+    # Return the modified list
+    return new_words
+
+def make_plural(word):
+    """
+    Returns the plural version of the given word.
+    """
+    # Add "es" to the end of the word if it ends in "s", "x", "z", "ch", or "sh"
+    if word.endswith(("s", "x", "z", "ch", "sh")):
+        return word + "es"
+    # Change the "y" to "ies" if the word ends in a consonant followed by a "y"
+    elif word[-1] == "y" and word[-2] not in "aeiou":
+        return word[:-1] + "ies"
+    # Add "s" to the end of the word if it ends in a vowel followed by a "y"
+    elif word[-1] == "y" and word[-2] in "aeiou":
+        return word + "s"
+    # Add "s" to the end of the word in all other cases
+    else:
+        return word + "s"

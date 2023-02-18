@@ -1,16 +1,13 @@
-import string
-import sys
-import re
-import pprint
-from googleapiclient.discovery import build
-from collections import Counter, defaultdict
 import AugmentQueryUtil
 import FormatSearchResultUtil
+import sys
+from collections import defaultdict
+from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from textwrap import dedent
 
 # search_engine_id = "089e480ae5f6ce283"
 # json_api_key = "AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY"
-
 
 API_KEY = None
 ENGINE_KEY = None
@@ -35,17 +32,17 @@ def get_google_search_results():
     Initiates google querying process by taking the initial query
     and optionally appending the initial query to the new augmented query terms
     Throws exception if API or Engine key are invalid.
-    
     """
     global USER_QUERY, NEW_QUERY_TERMS
 
     service = build("customsearch", "v1", developerKey=API_KEY)
     querying = True
     while querying:
-        termFrequency, relevant_documents, irrelevant_documents = {}, defaultdict(int), defaultdict(int)
-        if (len(NEW_QUERY_TERMS) > 0):
-            USER_QUERY = USER_QUERY + " " + " ".join(NEW_QUERY_TERMS)
+        # if (len(NEW_QUERY_TERMS) > 0):
+        #     USER_QUERY = USER_QUERY + " " + " ".join(NEW_QUERY_TERMS)
+
         write_parameters(PRECISION, USER_QUERY)
+
         try:
             res = (
             service.cse()
@@ -60,6 +57,7 @@ def get_google_search_results():
             print("API key or Engine key not valid. Please pass a valid API and Engine key.")
             querying = False
 
+
 def write_feedback_summary():
     """
     Prints to the console the summary when the program is finished and the
@@ -72,34 +70,33 @@ def write_feedback_summary():
     # Desired precision reached, done
     # global calculated_precision
 
-    print("\
-====================== \n\
-FEEDBACK SUMMARY \n\
-Query {user_query} \n\
-Precision {calculated_precision} \n\
-Desired precision reached, done".format(user_query=USER_QUERY, calculated_precision=CALCULATED_PRECISION)
-    )
+    print(dedent("""
+    ======================
+    FEEDBACK SUMMARY
+    Query {user_query}
+    Precision {calculated_precision}
+    Desired precision reached, done""".format(user_query=USER_QUERY, calculated_precision=CALCULATED_PRECISION)
+    ))
 
-def write_augment_query_summary():
+def write_augment_query_summary(old_user_query):
     """
     Prints to the console the summary when the desired precision
     has not been reached but new words have been found to augment
     the user query
     """
-
     global USER_QUERY
     global NEW_QUERY_TERMS
-    
-    print("\
-====================== \n\
-FEEDBACK SUMMARY \n\
-Query {user_query} \n\
-Precision {calculated_precision} \n\
-Still below the desired precision of {desired_precision} \n\
-Indexing results .... \n\
-Indexing results .... \n\
-Augmenting by {new_query_terms}".format(user_query=USER_QUERY, calculated_precision=CALCULATED_PRECISION, desired_precision=PRECISION, new_query_terms=" ".join(NEW_QUERY_TERMS))
-    )
+
+    print(dedent("""
+    ======================
+    FEEDBACK SUMMARY
+    Query {user_query}
+    Precision {calculated_precision}
+    Still below the desired precision of {desired_precision}
+    Indexing results ....
+    Indexing results ....
+    Augmenting by {new_query_terms}""".format(user_query=old_user_query, calculated_precision=CALCULATED_PRECISION, desired_precision=PRECISION, new_query_terms=" ".join(NEW_QUERY_TERMS))
+    ))
 
 
 def write_unable_to_augment_query_summary():
@@ -107,7 +104,6 @@ def write_unable_to_augment_query_summary():
     Prints to the console the summary when the desired precision
     has not been reached and new words have not found to augment
     the user query
-    
     """
 
     """
@@ -121,15 +117,16 @@ def write_unable_to_augment_query_summary():
     Augmenting by
     Below desired precision, but can no longer augment the query
     """
-    print("\
-====================== \n\
-FEEDBACK SUMMARY \n\
-Query {user_query} \n\
-Precision {calculated_precision} \n\
-Still below the desired precision of {desired_precision} \n\
-Below desired precision, but can no longer augment the query".format(user_query=USER_QUERY, desired_precision=PRECISION, calculated_precision=CALCULATED_PRECISION)
-)
-    
+    print(dedent("""
+    ======================
+    FEEDBACK SUMMARY
+    Query {user_query}
+    Precision {calculated_precision}
+    Still below the desired precision of {desired_precision}
+    Below desired precision, but can no longer augment the query""".format(user_query=USER_QUERY, desired_precision=PRECISION, calculated_precision=CALCULATED_PRECISION)
+    ))
+
+
 def augment_query(google_search_results, relevant, not_relevant):
     """
     The logic that finds the new words to augment the user query
@@ -140,8 +137,6 @@ def augment_query(google_search_results, relevant, not_relevant):
         4. Running the Rocchio algorithm
         5. Returning the final 1 or 2 new words that augment the user query
     """
-
-
     tf_idf = AugmentQueryUtil.createTfIdf()
 
     AugmentQueryUtil.transformUserQueryToVector(tf_idf, google_search_results, [USER_QUERY])
@@ -168,29 +163,24 @@ def augment_query(google_search_results, relevant, not_relevant):
     return new_words
 
 
+# def final_precision_zero_or_reached(total_search_results):
+#     global calculated_precision
+#     global augmented_query_terms
+#     global new_query_terms
 
+#     print("Calculated Precision: ", calculated_precision)
+#     print("Total Search Results", total_search_results)
+#     if ((calculated_precision / total_search_results) >= PRECISION):
+#         write_feedback_summary(total_search_results)
+#         return True
+#     elif (calculated_precision == 0):
+#         write_unable_to_augment_query_summary(total_search_results)
+#         return True
+#     else:
+#         new_query_terms = augment_query()
+#         augmented_query_terms += new_query_terms
+#         return False
 
-
-def final_precision_zero_or_reached(total_search_results):
-    global calculated_precision
-    global augmented_query_terms
-    global new_query_terms
-
-    print("Calculated Precision: ", calculated_precision)
-    print("Total Search Results", total_search_results)
-    if ((calculated_precision / total_search_results) >= PRECISION):
-        write_feedback_summary(total_search_results)
-        return True
-    elif (calculated_precision == 0):
-        write_unable_to_augment_query_summary(total_search_results)
-        return True
-    else:
-        new_query_terms = augment_query()
-        augmented_query_terms += new_query_terms
-        return False
-
-
-    
 
 def parse_search_results(res):
     """
@@ -203,7 +193,7 @@ def parse_search_results(res):
     As long as the maximum number of iterations has not been reached, any precision in between [0.0, 1.0] 
     will trigger the augment_query() function 
     """
-    global CALCULATED_PRECISION, NEW_QUERY_TERMS
+    global CALCULATED_PRECISION, NEW_QUERY_TERMS, USER_QUERY
     
     # total_search_results = len(res['items'])
     # old_query_length = len(augmented_query_terms)
@@ -214,48 +204,38 @@ def parse_search_results(res):
     relevant, not_relevant = [], []
 
     for count, item in enumerate(res['items']):
-        result_title = item['title']
-        result_url = item['link']
-        result_summary = item['snippet']
+        result_title = item.get('title','')
+        result_url = item.get('link','')
+        result_summary = item.get('snippet', '')
 
         # skip pdf files
         if len(result_url) >= 3 and result_url[-4:] == ".pdf":
             continue
 
-        print("\
-Result {iteration_count}\n\
-[\n\
- URL: {result_url} \n\
- Title: {result_title} \n\
- Summary: {result_summary} \n\
-] \n".format(iteration_count=count+1, result_url=result_url, result_title=result_title, result_summary=result_summary)
-        )
+        print(dedent("""
+        Result {iteration_count}
+        [
+         URL: {result_url}
+         Title: {result_title}
+         Summary: {result_summary}
+        ]""".format(iteration_count=count+1, result_url=result_url, result_title=result_title, result_summary=result_summary)
+        ))
 
         # parsed_words = calculate_term_frequency_for_document(result_summary)
 
-
         # result_body = FormatSearchResultUtil.getSearchResultBody(result_url)
-        result_body = ''
-        # print("RESULT BODY: ", result_body)
-        combined_search_result_string = result_title + " " + result_summary + " " + result_body
-        # print("COMBINED: " , combined_search_result_string)
+        result_body = ""
 
+        combined_search_result_string = result_title + " " + result_summary + " " + result_body
         
         formatted_search_result = FormatSearchResultUtil.removeUnwantedChars(combined_search_result_string)
         refined_search_results.append(formatted_search_result)
-        # print(formatted_search_result)
 
         relevancy = input("Relevant (Y/N)? ")
         if (relevancy.upper() == "Y"):
             relevant.append(formatted_search_result)
-
-
-
-            # store_relevant_document(set(parsed_words))
-        
         else:
             not_relevant.append(formatted_search_result)
-            # store_irrelevant_document(set(parsed_words))
     
     numOfRelevantResults = len(relevant)
     numOfNonRelevantResults = len(not_relevant)
@@ -269,39 +249,31 @@ Result {iteration_count}\n\
         return False
     else:
         NEW_QUERY_TERMS = augment_query(refined_search_results, relevant, not_relevant)
-        write_augment_query_summary()
+        reordered_words = AugmentQueryUtil.maybeReorderWords(USER_QUERY, NEW_QUERY_TERMS)
+        old_user_query = USER_QUERY
+        USER_QUERY = " ".join(reordered_words)
+        write_augment_query_summary(old_user_query)
         return True
 
 
-
-    # result = final_precision_zero_or_reached(total_search_results)
-    # if (len(augmented_query_terms) != old_query_length):
-    #     write_augment_query_summary(total_search_results)
-    #     return True
-    # else:
-    #     return not(result)
-
-
-def store_irrelevant_document(words):
-    global irrelevant_documents
+# def store_irrelevant_document(words):
+#     global irrelevant_documents
     
-    for word in words:
-        if (word in irrelevant_documents.keys()):
-            irrelevant_documents[word] += 1
-        else:
-            irrelevant_documents[word] = 1
+#     for word in words:
+#         if (word in irrelevant_documents.keys()):
+#             irrelevant_documents[word] += 1
+#         else:
+#             irrelevant_documents[word] = 1
 
 
-def store_relevant_document(words):
-    global relevant_documents
+# def store_relevant_document(words):
+#     global relevant_documents
 
-    for word in words:
-        if (word in relevant_documents.keys()):
-            relevant_documents[word] += 1
-        else:
-            relevant_documents[word] = 1
-
-    
+#     for word in words:
+#         if (word in relevant_documents.keys()):
+#             relevant_documents[word] += 1
+#         else:
+#             relevant_documents[word] = 1
 
     # words = []
     # words = result_summary.split()
@@ -316,25 +288,20 @@ def store_relevant_document(words):
     # relevant_documents = Counter(relevant_documents) + Counter(relevant_document)
     # print("Relevant Documents: ", relevant_documents)
 
+# def calculate_term_frequency_for_document(result_description):
+#     global termFrequency
+#     words = []
+#     words = result_description.split()
 
+#     punctuations =  '''!()[]\{\};:'"\,<>./?@#$%^&*_~'''
+#     words = [word.translate(str.maketrans('', '', punctuations)) for word in words if word.lower() not in stop_words]
+#     if ('' in words):
+#         words.remove('')
+#     wfreq = [words.count(w) for w in words]
+#     newTermFrequency = (dict(zip(words,wfreq)))
+#     termFrequency = Counter(termFrequency) + Counter(newTermFrequency)
 
-def calculate_term_frequency_for_document(result_description):
-    global termFrequency
-    words = []
-    words = result_description.split()
-    # print(words)
-
-    punctuations =  '''!()[]\{\};:'"\,<>./?@#$%^&*_~'''
-    words = [word.translate(str.maketrans('', '', punctuations)) for word in words if word.lower() not in stop_words]
-    if ('' in words):
-        words.remove('')
-    wfreq = [words.count(w) for w in words]
-    newTermFrequency = (dict(zip(words,wfreq)))
-    termFrequency = Counter(termFrequency) + Counter(newTermFrequency)
-
-    return words
-
-
+#     return words
 
 
 def write_parameters(precision, user_query):
@@ -342,17 +309,16 @@ def write_parameters(precision, user_query):
     Prints to the console the valid parameters provided by the 
     user when the program is launched
     """
+    print(dedent("""
+    Parameters:
+    Client key  = AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY
+    Engine key  = 089e480ae5f6ce283
+    Query       = {user_query}
+    Precision   = {precision}
+    Google Search Results:
+    ======================""".format(user_query=USER_QUERY, precision=PRECISION)
+    ))
 
-    print("\
-Parameters: \n\
-Client key  = AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY \n\
-Engine key  = 089e480ae5f6ce283 \n\
-Query       = {user_query} \n\
-Precision   = {precision} \n\
-Google Search Results: \n\
-======================".format(user_query=USER_QUERY, precision=PRECISION)
-
-    )
 
 def main():
     """
@@ -369,7 +335,6 @@ def main():
         # Usage: /home/gkaraman/run <API Key> <Engine Key> <Precision> <Query>
         print("Format must be <API Key> <Engine Key> <Precision> <Query>")
         return
-
     
     API_KEY = terminal_arguments[0]
     ENGINE_KEY = terminal_arguments[1]

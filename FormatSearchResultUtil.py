@@ -24,4 +24,8 @@ def getSearchResultBody(url):
     
     if not result:
         return ''
+    # bodyText = convertHTMLToText.handle(result.html)
+    # bodyLength = len(bodyText)
+
+    # return bodyText[0:bodyLength//2]
     return convertHTMLToText.handle(result.html)
