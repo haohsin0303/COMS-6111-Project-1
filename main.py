@@ -31,6 +31,12 @@ with open('stopwords.txt') as f:
 
 
 def get_google_search_results():
+    """
+    Initiates google querying process by taking the initial query
+    and optionally appending the initial query to the new augmented query terms
+    Throws exception if API or Engine key are invalid.
+    
+    """
     global USER_QUERY, NEW_QUERY_TERMS
 
     service = build("customsearch", "v1", developerKey=API_KEY)
@@ -55,6 +61,10 @@ def get_google_search_results():
             querying = False
 
 def write_feedback_summary():
+    """
+    Prints to the console the summary when the program is finished and the
+    desired precision has been reached
+    """
     # ======================
     # FEEDBACK SUMMARY
     # Query milk
@@ -71,6 +81,12 @@ Desired precision reached, done".format(user_query=USER_QUERY, calculated_precis
     )
 
 def write_augment_query_summary():
+    """
+    Prints to the console the summary when the desired precision
+    has not been reached but new words have been found to augment
+    the user query
+    """
+
     global USER_QUERY
     global NEW_QUERY_TERMS
     
@@ -87,6 +103,13 @@ Augmenting by {new_query_terms}".format(user_query=USER_QUERY, calculated_precis
 
 
 def write_unable_to_augment_query_summary():
+    """
+    Prints to the console the summary when the desired precision
+    has not been reached and new words have not found to augment
+    the user query
+    
+    """
+
     """
     ======================
     FEEDBACK SUMMARY
@@ -108,6 +131,17 @@ Below desired precision, but can no longer augment the query".format(user_query=
 )
     
 def augment_query(google_search_results, relevant, not_relevant):
+    """
+    The logic that finds the new words to augment the user query
+    Utilizes AugmentQueryUtil.py to handle:
+        1. Creating the TF_IDF vector
+        2. Transforming the relevant and non-relevant documents to vectors
+        3. Initializing the Rocchio algorithm parameters
+        4. Running the Rocchio algorithm
+        5. Returning the final 1 or 2 new words that augment the user query
+    """
+
+
     tf_idf = AugmentQueryUtil.createTfIdf()
 
     AugmentQueryUtil.transformUserQueryToVector(tf_idf, google_search_results, [USER_QUERY])
@@ -159,6 +193,16 @@ def final_precision_zero_or_reached(total_search_results):
     
 
 def parse_search_results(res):
+    """
+    Handles the logic for iterating over the search results and asking for relevancy
+    from the user.
+    We designate each search result as relevant or non-relevant bsaed on the user's input
+    and calculate the current precision.
+    We terminate the program and print the respective summary if the calculated precision is exactly
+    0.0 or 1.0. 
+    As long as the maximum number of iterations has not been reached, any precision in between [0.0, 1.0] 
+    will trigger the augment_query() function 
+    """
     global CALCULATED_PRECISION, NEW_QUERY_TERMS
     
     # total_search_results = len(res['items'])
@@ -294,6 +338,11 @@ def calculate_term_frequency_for_document(result_description):
 
 
 def write_parameters(precision, user_query):
+    """
+    Prints to the console the valid parameters provided by the 
+    user when the program is launched
+    """
+
     print("\
 Parameters: \n\
 Client key  = AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY \n\
@@ -307,11 +356,10 @@ Google Search Results: \n\
 
 def main():
     """
-    
-    
+    Starting point of program that parses the terminal arguments
+    and verifies that arguments are valid. 
+    Once arguments are deemed valid, the querying function will be called
     """
-
-
     # Format Required: <google api key> <google engine id> <precision> <query>
     global USER_QUERY, PRECISION, API_KEY, ENGINE_KEY
 
