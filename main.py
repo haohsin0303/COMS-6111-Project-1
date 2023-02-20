@@ -1,23 +1,17 @@
 import AugmentQueryUtil
 import FormatSearchResultUtil
 import sys
-from collections import defaultdict
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from textwrap import dedent
 
-# search_engine_id = "089e480ae5f6ce283"
-# json_api_key = "AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY"
 
+# Global Variables
 API_KEY = None
 ENGINE_KEY = None
 PRECISION = 0
 CALCULATED_PRECISION = -1
 USER_QUERY = ""
-termFrequency = {}
-relevant_documents = defaultdict(int)
-irrelevant_documents = defaultdict(int)
-augmented_query_terms = []
 NEW_QUERY_TERMS = []
 ITERATION_COUNT = 0
 
@@ -28,13 +22,14 @@ def get_google_search_results():
     and optionally appending the initial query to the new augmented query terms
     Returns if number of search results is less than 10 and throws exception if API or Engine key are invalid.
     """
-    global USER_QUERY, NEW_QUERY_TERMS, ITERATION_COUNT
+
+    global ITERATION_COUNT
 
     service = build("customsearch", "v1", developerKey=API_KEY)
     querying = True
     while querying:
         ITERATION_COUNT += 1
-        write_parameters(PRECISION, USER_QUERY)
+        write_parameters()
 
         try:
             res = (
@@ -71,14 +66,13 @@ def write_feedback_summary():
     Desired precision reached, done""".format(user_query=USER_QUERY, calculated_precision=CALCULATED_PRECISION)
     ))
 
+
 def write_augment_query_summary(old_user_query):
     """
     Prints to the console the summary when the desired precision
     has not been reached but new words have been found to augment
     the user query
     """
-    global USER_QUERY
-    global NEW_QUERY_TERMS
 
     print(dedent("""
     ======================
@@ -119,6 +113,7 @@ def augment_query(google_search_results, relevant, not_relevant):
         4. Running the Rocchio algorithm
         5. Returning the final 1 or 2 new words that augment the user query
     """
+
     tf_idf = AugmentQueryUtil.createTfIdf()
 
     AugmentQueryUtil.transformUserQueryToVector(tf_idf, google_search_results, [USER_QUERY])
@@ -133,6 +128,7 @@ def augment_query(google_search_results, relevant, not_relevant):
 
     return new_words
 
+
 def parse_search_results(res):
     """
     Handles the logic for iterating over the search results and asking for document relevancy
@@ -144,15 +140,16 @@ def parse_search_results(res):
     As long as the maximum number of iterations has not been reached, any precision in between [0.0, 1.0] 
     will trigger the augment_query() function 
     """
-    global CALCULATED_PRECISION, NEW_QUERY_TERMS, USER_QUERY, ITERATION_COUNT
+
+    global CALCULATED_PRECISION, NEW_QUERY_TERMS, USER_QUERY
 
     refined_search_results = []
     relevant, not_relevant = [], []
 
     for count, item in enumerate(res['items']):
         # Extracts title, url and summary
-        result_title = item.get('title','none')
-        result_url = item.get('link','none')
+        result_title = item.get('title', 'none')
+        result_url = item.get('link', 'none')
         result_summary = item.get('snippet', 'none')
 
         # skips pdf files
@@ -200,25 +197,31 @@ def parse_search_results(res):
     # Augment query when precision is not reached and restart querying process
     else:
         NEW_QUERY_TERMS = augment_query(refined_search_results, relevant, not_relevant)
+        if (len(NEW_QUERY_TERMS) == 0):
+            write_unable_to_augment_query_summary()
+            return False
+        
         reordered_words = AugmentQueryUtil.maybeReorderWords(USER_QUERY, NEW_QUERY_TERMS)
         old_user_query = USER_QUERY
         USER_QUERY = " ".join(reordered_words)
         write_augment_query_summary(old_user_query)
         return True
 
-def write_parameters(precision, user_query):
+
+def write_parameters():
     """
     Prints to the console the valid parameters provided by the 
     user when the program is launched
     """
+
     print(dedent("""
     Parameters:
-    Client key  = AIzaSyBr5aenBL0VfH55raQJUMSYiOmdkspmzPY
-    Engine key  = 089e480ae5f6ce283
+    Client key  = {api_key}
+    Engine key  = {engine_key}
     Query       = {user_query}
     Precision   = {precision}
     Google Search Results:
-    ======================""".format(user_query=USER_QUERY, precision=PRECISION)
+    ======================""".format(api_key=API_KEY, engine_key=ENGINE_KEY, user_query=USER_QUERY, precision=PRECISION)
     ))
 
 
@@ -228,6 +231,7 @@ def main():
     and verifies that arguments are valid. 
     Once arguments are deemed valid, the querying function will be called
     """
+
     # Format Required: <google api key> <google engine id> <precision> <query>
     global USER_QUERY, PRECISION, API_KEY, ENGINE_KEY
 

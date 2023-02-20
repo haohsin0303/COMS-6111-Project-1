@@ -3,11 +3,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import itertools
 from sklearn.metrics.pairwise import cosine_similarity
 
+# Rocchio starting parameters
 ALPHA = 1
 BETA = 0.75
 GAMMA = 0.15
 
-COUNT = 1
 Q0 = 0
 R, NR, SUM_R, SUM_NR = 0, 0, 0, 0
 
@@ -17,7 +17,7 @@ orderingOfWords = []
 
 def createTfIdf():
     """
-    Creates a new instance of TfidfVectorizer
+    Create a new instance of TfidfVectorizer
     """
     return TfidfVectorizer(analyzer="word", stop_words='english')
 
@@ -79,13 +79,18 @@ def selectHighestValuedWords(tf_idf, q_vector, user_query):
     nonzero_indices = q_vector.nonzero()
     rows, columns = nonzero_indices[0], nonzero_indices[1]
 
-    # Create a dictionary mapping each non-zero index to its corresponding value in q_vector
+    # Create a dictionary mapping each index to its q_vector value
     tf_idf_dict = {}
     for i in range(len(rows)):
         pair = (rows[i], columns[i])
         tf_idf_dict[pair] = q_vector[pair]
 
     word_scores = dict(zip(all_words, list(tf_idf_dict.values())))
+
+    # Don't augment the query if highest score value seen is really low
+    if max(word_scores.values()) < 0.0001:
+        return []
+
     highest_words = sorted(word_scores, key=lambda x: word_scores[x], reverse=True)
 
     # Filters out any words that are already in the original user query
@@ -112,22 +117,20 @@ def selectHighestValuedWords(tf_idf, q_vector, user_query):
     if firstWordSim <= original_sim and secondWordSim <= original_sim:
         for sentenceFragment in orderingOfWords:
             if (" ".join(highest_words[:2]) in sentenceFragment):
-                print("HERE: ", highest_words[:2])
                 return highest_words[:2]
             else:
                 swapped_highest_words_ordering = highest_words[:2][::-1] 
                 if (" ".join(swapped_highest_words_ordering) in sentenceFragment):
-                    print("HERE 2: ", swapped_highest_words_ordering)
                     return swapped_highest_words_ordering 
 
     # Otherwise, return either the first highest word or second highest word
     # depending on whose similarity score is higher. 
-    if firstWordSim >= secondWordSim:
-        print("HERE 3: ", highestWord1)
+    if firstWordSim > secondWordSim:
         return [highestWord1]
-    else:
-        print("HERE 4: ", highestWord2)
+    elif firstWordSim < secondWordSim:
         return [highestWord2]
+    else:
+        return [highestWord1, highestWord2]
 
 
 
@@ -168,45 +171,47 @@ def calculateScore(ordering, sentenceFragment):
     # Returns the score based on how close the ordering matches
     # the fragment's ordering
     for word in ordering:
-        index = -1
+        visited_index = -1
         for i, w in enumerate(words):
             if (word.lower() == w.lower()):
-                index = i
+                visited_index = i
                 break
-        if index == -1 or index <= last_visited_index:
+        if visited_index == -1 or visited_index <= last_visited_index:
             return 0
 
-        last_visited_index = index
+        last_visited_index = visited_index
     return 1
 
-def removePluralOrSingular(words, target_word):
+def removePluralOrSingular(words, orig_word):
     """
     Removes the plural and singular versions of a word from a list of words.
     """
     new_words = words.copy()
 
-    # Iterate over each word in the list
+    # Check if the word is a plural or singular version of the target word and remove if satisfied
     for word in words:
-        # Check if the word is a plural or singular version of the target word
-        if word == target_word or word == makePlural(target_word):
-            # If it is, remove it from the new list
+        if word == orig_word or word == pluralizeWord(orig_word):
             new_words.remove(word)
 
-    # Return the modified list
     return new_words
 
-def makePlural(word):
+def pluralizeWord(word):
     """
     Returns the plural version of a given word.
     """
+    vowels = set(['a', 'e','i','o','u'])
+    consonantEndings = tuple(['s', 'x','z','ch','sh'])
+
     # Add "es" to the end of the word if it ends in "s", "x", "z", "ch", or "sh"
-    if word.endswith(("s", "x", "z", "ch", "sh")):
+    if word.endswith(consonantEndings):
         return word + "es"
+
     # Change the "y" to "ies" if the word ends in a consonant followed by a "y"
-    elif word[-1] == "y" and word[-2] not in "aeiou":
+    elif word[-1] == "y" and word[-2] not in vowels:
         return word[:-1] + "ies"
+
     # Add "s" to the end of the word if it ends in a vowel followed by a "y"
-    elif word[-1] == "y" and word[-2] in "aeiou":
+    elif word[-1] == "y" and word[-2] in vowels:
         return word + "s"
     else:
         return word + "s"
