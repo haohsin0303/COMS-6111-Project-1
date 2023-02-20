@@ -47,12 +47,12 @@ We first calculate the importance of words in these documents using the TF-IDF a
 
 We then use the Rocchio algorithm to identify the important terms to be added to the original query. The Rocchio algorithm takes the TF-IDF weights of the words in the relevant and non-relevant documents and generates a new query vector by combining the original query vector with the weighted sum of the relevant and non-relevant document vectors. We set the alpha, beta, and gamma parameters used for the Rocchio algorithm to 1.0, 0.75, and 0.15 respectively. These values were determined based on Stanford's NLP Rocchio algorithm recommendations [1].  
 
-Once we have identified the new query terms, we apply finalizing processing steps to help narrow the search results.
-First, if the new query terms have words that are the plural or singular versions of the initial query, we remove it since it does not provide any additional information to the desired query.
+Once we have identified the new query terms, we apply finalizing processing steps to help narrow the search results. <br />
+First, if the new query terms have words that are the plural or singular versions of the initial query, we remove it since it does not provide any additional information to the desired query. <br />
 Second, if any of the highest word scores are deemed really low (i.e. < 0.0001), we stop augmenting the query and return the unable
-to augment query summary.
-Third, if the weighted scores of the two new query terms have a cosine similarity that is not similar to the resulting q vector, we check to see which ordering of the two new query terms is found in all of the short summaries. We check if the combined new query terms are found in the summary of the search results. If so, we return. If not, we swap the new query terms and perform the same check. 
-Otherwise, we check to see which word has the highest similarity and return that word alone. If the two words are exactly equal, then we return both words.
+to augment query summary. <br />
+Third, if the weighted scores of the two new query terms have a cosine similarity that is not similar to the resulting q vector, we check to see which ordering of the two new query terms is found in all of the short summaries. We check if the combined new query terms are found in the summary of the search results. If so, we return. If not, we swap the new query terms and perform the same check. <br />
+Otherwise, we check to see which word has the highest similarity and return that word alone. If the two words are exactly equal, then we return both words. <br />
 
 Once we finalize the new query terms, we may have to reorder the entire query itself to help narrow the search results. 
 We do this by iterating over all possible permutations of the user query combined with the new query terms and calculating an ordering score for each permutation based on its relative position. 
