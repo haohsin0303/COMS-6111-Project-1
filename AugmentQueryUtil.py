@@ -105,7 +105,7 @@ def selectHighestValuedWords(tf_idf, q_vector, user_query):
         return highest_words
 
     
-    # Calculates the cosine similary between the user query and the 2 highest words
+    # Calculates the cosine similary between the q_vector and the combined query
     highestWord1, highestWord2 = highest_words[:2]
     original_sim = cosine_similarity(q_vector, tf_idf.transform([user_query]))[0][0]
     firstWordSim = cosine_similarity(q_vector, tf_idf.transform(["{} {}".format(user_query, highestWord1)]))[0][0]
