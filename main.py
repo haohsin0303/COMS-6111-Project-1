@@ -144,7 +144,7 @@ def parse_search_results(res):
     As long as the maximum number of iterations has not been reached, any precision in between [0.0, 1.0] 
     will trigger the augment_query() function 
     """
-    global CALCULATED_PRECISION, NEW_QUERY_TERMS, USER_QUERY
+    global CALCULATED_PRECISION, NEW_QUERY_TERMS, USER_QUERY, ITERATION_COUNT
 
     refined_search_results = []
     relevant, not_relevant = [], []
@@ -169,8 +169,10 @@ def parse_search_results(res):
         ]""".format(iteration_count=count+1, result_url=result_url, result_title=result_title, result_summary=result_summary)
         ))
 
-        # result_body = FormatSearchResultUtil.getSearchResultBody(result_url)
-        result_body = ""
+        if (ITERATION_COUNT >= 10):
+            result_body = FormatSearchResultUtil.getSearchResultBody(result_url)
+        else:
+            result_body = ""
 
         combined_search_result_string = result_title + " " + result_summary + " " + result_body
         
