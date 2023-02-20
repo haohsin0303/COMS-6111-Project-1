@@ -56,7 +56,7 @@ Otherwise, we check to see which word has the highest similarity and return that
 
 Once we finalize the new query terms, we may have to reorder the entire query itself to help narrow the search results. 
 We do this by iterating over all possible permutations of the user query combined with the new query terms and calculating an ordering score for each permutation based on its relative position. 
-The ordering score is calculated by iterating over the summary search results and determining whether or not the summary
+The ordering score is calculated by iterating over the summary search results and determining whether the summary
     a) has all the permutation terms in its text
     b) follows the same ordering as the terms in the permutation by calculating its relative position
 
