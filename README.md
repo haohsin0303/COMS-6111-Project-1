@@ -39,7 +39,7 @@ python3 main.py <API Key> <Engine Key> <Precision> <Query>
 
 The project's internal design is composed of several modules that are responsible for different aspects of the query modification process. The main components of the project are:
 
-1. `main.py`: This module is used to run the whole program. It takes the user query as input,
+1. `main.py`: This module is used to run the whole program. It performs all validation checks when user enters the program parameters, conducts the google search requests with the parameters, and handles all the output printed to the console. 
 2. `FormatSearchResultUtil.py`: This module is responsible for formatting the search result from google search engine API.
 3. `AugmentQueryUtil.py`: This module implements the TF-IDF and Rocchio algorithm; and orders the result with the highest scores. We use sklearn to help us with the TF-IDF vector calculation.
 
@@ -53,12 +53,13 @@ We then use the Rocchio algorithm to identify the important terms to be added to
 Once we have identified the new query terms, we apply finalizing processing steps to help narrow the search results.
 First, if the new query terms have words that are the plural or singular versions of the initial query, we remove it since it does not provide additional context
 to the desired query.
-Second, if the weighted scores of the two new query terms have a large absolute difference, there is a probable chance that the term with the lowest weighted score could add additional complexity to the search results. Therefore, we remove it.
-Third, we check if the combined new query terms are found in the summary of the search results. If so, we return. If not, we swap the new query terms
-and perform the same check.
+Second, if the weighted scores of the two new query terms have a cosine similarity that is not similar to the original query, we check to see which ordering
+of the two new query terms is found in all of the short summaries. We check if the combined new query terms are found in the summary of the search results. If so, we return. If not, we swap the new query terms and perform the same check. 
+Otherwise, we check to see which word has the highest similarity and return that word alone. 
 
 Once we finalize the new query terms, we may have to reorder the entire query itself to help narrow the search results. 
-We do this by iterating over all possible permutations of the user query combined with the new query terms and calculating an ordering score for each permutation.
+We do this by iterating over all possible permutations of the user query combined with the new query terms and calculating an ordering score for each permutation based
+on its relative position. 
 The ordering score is calculated by iterating over the summary search results and determining whether or not the summary
     a) has all the permutation terms in its text
     b) follows the same ordering as the terms in the permutation
