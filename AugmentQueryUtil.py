@@ -1,4 +1,3 @@
-from collections import defaultdict
 from sklearn.feature_extraction.text import TfidfVectorizer
 import itertools
 from sklearn.metrics.pairwise import cosine_similarity
